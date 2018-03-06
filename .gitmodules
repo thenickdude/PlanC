@@ -1,0 +1,18 @@
+[submodule "cryptopp"]
+	path = cryptopp
+	url = https://github.com/weidai11/cryptopp.git
+[submodule "zstr"]
+	path = zstr
+	url = https://github.com/mateidavid/zstr.git
+[submodule "boost"]
+	path = boost
+	url = https://github.com/boostorg/boost.git
+[submodule "leveldb"]
+	path = leveldb
+	url = https://github.com/google/leveldb.git
+[submodule "snappy"]
+	path = snappy
+	url = https://github.com/google/snappy.git
+[submodule "zlib"]
+	path = zlib
+	url = https://github.com/madler/zlib.git
