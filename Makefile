@@ -6,6 +6,9 @@ BOOST_LIBS = boost/stage/lib/libboost_iostreams.a boost/stage/lib/libboost_progr
 STATIC_LIBS = leveldb/out-static/libleveldb.a cryptopp/libcryptopp.a snappy/libsnappy.a $(BOOST_LIBS) zlib/libz.a
 all : plan-c
 
+# Remove these options if you don't need a static build:
+STATIC_OPTIONS = # -static -static-libgcc -static-libstdc++
+
 ZLIB_PATH = $(abspath zlib)
 
 $(SUBMODULES) :
@@ -32,9 +35,10 @@ $(BOOST_LIBS) : boost/boost/
 
 release : plan-c
 	gpg --local-user 0x8F73A12990A8180D --detach-sign -o plan-c.sig plan-c
+	tar -zcf plan-c.tar.gz plan-c plan-c.sig
 
 plan-c : $(SOURCE) $(SUBMODULES) $(STATIC_LIBS) cryptopp/libcryptopp.a boost/boost/
-	$(CXX) -Wall --std=c++11 -O3 -o $@ -Iboost -Ileveldb/include -Izlib $(SOURCE) $(STATIC_LIBS) -lpthread
+	$(CXX) $(STATIC_OPTIONS) -Wall --std=c++11 -O3 -g3 -o $@ -Iboost -Ileveldb/include -Izlib $(SOURCE) $(STATIC_LIBS) -lpthread
 
 clean :
 	rm -f plan-c
