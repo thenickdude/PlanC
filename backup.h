@@ -199,8 +199,8 @@ enum class FilenameMatchMode {
 
 class BackupArchiveFileIterator {
 private:
+	std::string fileManifestFilename;
 	FILE *manifestFile;
-	FILE *historyFile;
 	bool isEnd;
 
 	FileManifestHeader currentFile;
@@ -211,9 +211,11 @@ private:
 	std::string search;
 
 	void findNextFile();
+	void openFileManifest();
 
 public:
-	BackupArchiveFileIterator(FILE *manifestFile, FILE *historyFile, const std::string &key, FilenameMatchMode matchMode, const std::string &search);
+	BackupArchiveFileIterator(const std::string &manifestFilename);
+	BackupArchiveFileIterator(const std::string &manifestFilename, const std::string &key, FilenameMatchMode matchMode, const std::string &search);
 	BackupArchiveFileIterator (const BackupArchiveFileIterator &);
 	BackupArchiveFileIterator& operator= (const BackupArchiveFileIterator& that);
 	~BackupArchiveFileIterator();
@@ -230,6 +232,7 @@ public:
 class BackupArchive {
 private:
 	boost::filesystem::path rootPath;
+	std::string fileManifestFilename, fileHistoryFilename;
 
 	FILE *fileManifest;
 	FILE *fileHistory;

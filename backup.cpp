@@ -27,8 +27,8 @@ std::vector<int64_t> resolveBlockList(std::vector<int64_t> thisList, std::vector
 }
 
 BackupArchive::BackupArchive(const boost::filesystem::path &path, const std::string &key) : rootPath(path), blockDirectories(path), key(key) {
-	std::string fileManifestFilename = (path / boost::filesystem::path("cpfmf")).string();
-	std::string fileHistoryFilename = (path/ boost::filesystem::path("cphdf")).string();
+	fileManifestFilename = (path / boost::filesystem::path("cpfmf")).string();
+	fileHistoryFilename = (path/ boost::filesystem::path("cphdf")).string();
 
 	fileManifest = fopen(fileManifestFilename.c_str(), "rb");
 	fileHistory = fopen(fileHistoryFilename.c_str(), "rb");
@@ -45,12 +45,8 @@ BackupArchive::BackupArchive(const boost::filesystem::path &path, const std::str
 }
 
 BackupArchive::~BackupArchive() {
-	if (fileManifest) {
-		fclose(fileManifest);
-	}
-	if (fileHistory) {
-		fclose(fileHistory);
-	}
+	fclose(fileManifest);
+	fclose(fileHistory);
 }
 
 void BackupArchive::cacheBlockIndex() {
@@ -101,33 +97,12 @@ std::string decryptEncryptedPath(std::string path, const std::string &key) {
 	throw std::runtime_error("decryptEncryptedPath: Unsupported path format");
 }
 
-FILE *duplicateFilePointer(FILE *file) {
-	if (file == nullptr) {
-		return nullptr;
-	}
-
-	int handle = fileno(file);
-	int copy = dup(handle);
-
-	if (copy < 0) {
-		throw std::runtime_error("Failed to duplicate file handle");
-	}
-
-	FILE *result = fdopen(copy, "rb");
-
-	if (!result) {
-		throw std::runtime_error("Failed to duplicate file handle");
-	}
-
-	return result;
-}
-
 BackupArchive::iterator BackupArchive::begin(FilenameMatchMode matchMode, const std::string &search) {
-	return BackupArchive::iterator(fileManifest, fileHistory, key, matchMode, search);
+	return BackupArchive::iterator(fileManifestFilename, key, matchMode, search);
 }
 
 BackupArchive::iterator BackupArchive::end() {
-	return BackupArchive::iterator(nullptr, nullptr, "", FilenameMatchMode::none, "");
+	return BackupArchive::iterator(fileManifestFilename);
 }
 
 FileHistory BackupArchive::getFileHistory(const FileManifestHeader &manifest) {
@@ -194,13 +169,21 @@ FileHistory BackupArchive::getFileHistory(const FileManifestHeader &manifest) {
 	return result;
 }
 
-BackupArchiveFileIterator::BackupArchiveFileIterator(FILE *manifestFile, FILE *historyFile, const std::string &key, FilenameMatchMode matchMode, const std::string &search) :
-		// Clone the passed file pointers so we can have multiple iterators:
-		manifestFile(duplicateFilePointer(manifestFile)),
-		historyFile(duplicateFilePointer(historyFile)),
-		isEnd(manifestFile == NULL),
+BackupArchiveFileIterator::BackupArchiveFileIterator(const std::string &manifestFilename) :
+	fileManifestFilename(manifestFilename),
+	isEnd(true)
+{
+}
+
+BackupArchiveFileIterator::BackupArchiveFileIterator(const std::string &manifestFilename,
+						  const std::string &key, FilenameMatchMode matchMode, const std::string &search) :
+		fileManifestFilename(manifestFilename),
+		isEnd(false),
 		key(key),
 		matchMode(matchMode), search(search) {
+
+	openFileManifest();
+
 	// Advance to the first file
 	findNextFile();
 }
@@ -214,6 +197,7 @@ void BackupArchiveFileIterator::findNextFile() {
 
 			if (feof(manifestFile)) {
 				isEnd = true;
+				fclose(manifestFile);
 				break;
 			}
 
@@ -244,6 +228,10 @@ bool BackupArchiveFileIterator::operator==(const BackupArchiveFileIterator &that
 		return false;
 	}
 
+	if (fileManifestFilename != that.fileManifestFilename) {
+		return false;
+	}
+
 	if (isEnd && that.isEnd) {
 		return true;
 	}
@@ -269,22 +257,37 @@ BackupArchiveFileIterator BackupArchiveFileIterator::operator++(int) {
 	return temp;
 }
 
+void BackupArchiveFileIterator::openFileManifest() {
+	if (!isEnd) {
+		manifestFile = fopen(fileManifestFilename.c_str(), "rb");
+
+		if (!manifestFile) {
+			throw std::runtime_error(
+				"Failed to open archive file manifest " + fileManifestFilename);
+		}
+	}
+}
+
 BackupArchiveFileIterator::BackupArchiveFileIterator(const BackupArchiveFileIterator & that) :
-		manifestFile(duplicateFilePointer(that.manifestFile)),
-		historyFile(duplicateFilePointer(that.historyFile)),
+		fileManifestFilename(that.fileManifestFilename),
 		isEnd(that.isEnd),
 		key(that.key),
 		matchMode(that.matchMode), search(that.search) {
+
+	openFileManifest();
+
 	// Doesn't advance the pointer
 }
 
 BackupArchiveFileIterator &BackupArchiveFileIterator::operator=(const BackupArchiveFileIterator &that) {
-	fclose(manifestFile);
-	fclose(historyFile);
+	if (!isEnd) {
+		fclose(manifestFile);
+	}
 
-	manifestFile = duplicateFilePointer(that.manifestFile);
-	historyFile = duplicateFilePointer(that.historyFile);
+	fileManifestFilename = that.fileManifestFilename;
 	isEnd = that.isEnd;
+
+	openFileManifest();
 
 	currentFile = that.currentFile;
 
@@ -296,12 +299,13 @@ BackupArchiveFileIterator &BackupArchiveFileIterator::operator=(const BackupArch
 }
 
 BackupArchiveFileIterator::~BackupArchiveFileIterator() {
-	fclose(manifestFile);
-	fclose(historyFile);
+	if (!isEnd) {
+		fclose(manifestFile);
+	}
 }
 
 FileHistoryIterator::FileHistoryIterator(std::vector<ArchivedFileVersion> *versions, bool end) : versions(versions), index(end ? versions->size() : 0) {
-	if (index == 0 && versions->size() > 0) {
+	if (index == 0 && !versions->empty()) {
 		snapshot.version = (*versions)[0];
 		snapshot.blockList = resolveBlockList(snapshot.version.blockInfo, snapshot.version.blockInfo);
 	}
