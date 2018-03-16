@@ -105,13 +105,15 @@ void BlockManifest::open() {
 }
 
 const BlockManifest& BlockDirectories::getManifestForBlock(int64_t blockNumber) const {
-	for (int i = 0; i < directories.size() - 1; i++) {
-		if (blockNumber < directories[i + 1].firstBlockNum) {
-			return directories[i];
+	int i;
+
+	for (i = 0; i < directories.size(); i++) {
+		if (blockNumber < directories[i].firstBlockNum) {
+			break;
 		}
 	}
 
-	return directories[directories.size() - 1];
+	return i > 0 ? directories[i - 1] : directories[0];
 }
 
 std::string BlockManifest::readBlockData(int64_t blockNumber, int len) const {
