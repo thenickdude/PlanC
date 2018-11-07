@@ -37,6 +37,8 @@ Windows - `C:\ProgramData\CrashPlan\conf\adb` or `C:\Users\<username>\AppData\<L
 macOS - `/Library/Application Support/CrashPlan/conf/adb` or `~/Library/Application Support/CrashPlan/conf/adb`  
 Linux - `/usr/local/crashplan/conf/adb`  
 
+On Windows, files in the conf directory are owned by SYSTEM, so a regular user can't open or copy them without first taking ownership of them.
+
 The adb directory should contain a list of files similar to this:
 
 ```
