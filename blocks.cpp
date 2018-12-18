@@ -74,7 +74,7 @@ void BlockManifest::open() {
 	FILE *manifestFile = fopen(manifestPath.string().c_str(), "rb");
 
 	if (!manifestFile) {
-		throw std::runtime_error("Failed to open block manifest for reading: " + manifestPath.string());
+		throw std::runtime_error("Failed to open block manifest (" + manifestPath.string() + ") for reading: " + strerror(errno));
 	}
 
 	fseek(manifestFile, 0, SEEK_END);
