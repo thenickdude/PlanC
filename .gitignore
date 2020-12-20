@@ -1,2 +1,9 @@
 /.idea/
 /plan-c
+/zlib
+/boost
+/cryptopp
+/leveldb
+/snappy
+/zstr
+project-config.jam
