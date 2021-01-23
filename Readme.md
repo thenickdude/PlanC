@@ -154,13 +154,13 @@ The `list-detailed` command shows detailed information about the latest revision
 ```bash
 ./plan-c --key 47F28C8B159... --archive crashplan-backup/29268951613 list-detailed
 
-/Users/dave/workspace/plan-c 0 2018-03-11 12:30:20 5D8C0210C2D84CABB3CEC8ADDE17EBF4
-/Users/dave/workspace/plan-c/planc.cpp 22419 2018-03-11 12:35:33 7E26B42E73834CE1AD4B872E7F23CCA5
+/Users/dave/workspace/plan-c 0 2018-03-11 12:30:20 2018-03-10 15:31:37 5D8C0210C2D84CABB3CEC8ADDE17EBF4
+/Users/dave/workspace/plan-c/planc.cpp 22419 2018-03-11 12:35:33 2018-03-10 15:32:45 7E26B42E73834CE1AD4B872E7F23CCA5
 ...
 ```
 
 From left to right, the columns are the filename, the filesize (0 for directories), the time that Crashplan snapshotted 
-the file, and the MD5 hash of the file (`-` for directories).
+the file, the file's last modification timestamp, and the MD5 hash of the file (`-` for directories).
 
 You can add `--include-deleted` to include files that no longer existed in the newest version of the backup, these are
 listed with an `X` for their MD5 hash.
@@ -173,15 +173,15 @@ Add the `--at` option to show information about files in an earlier version of t
 ```bash
 ./plan-c --key 47F28C8B159... --archive crashplan-backup/29268951613 list-all
 
-/Users/dave/workspace/plan-c 0 2015-05-24 02:28:09 -
-/Users/dave/workspace/plan-c 0 2015-06-16 05:32:26 -
-/Users/dave/workspace/plan-c 0 2017-09-14 08:11:11 -
-/Users/dave/workspace/plan-c/planc.cpp 3964 2015-05-24 02:28:09 7E26B42E73834CE1AD4B872E7F23CCA5
-/Users/dave/workspace/plan-c/planc.cpp 3964 2015-06-16 05:32:24 7E26B42E73834CE1AD4B872E7F23CCA5
-/Users/dave/workspace/plan-c/planc.cpp 4019 2015-07-09 06:27:50 4AAE0EB528F04082B4D5DC7B59F34EA7
-/Users/dave/workspace/plan-c/planc.cpp 4019 2015-07-09 21:35:09 4AAE0EB528F04082B4D5DC7B59F34EA7
-/Users/dave/workspace/plan-c/planc.cpp 0 2015-09-04 15:15:08 X
-/Users/dave/workspace/plan-c/planc.cpp 4144 2017-09-14 08:11:10 4CE7888DB7CA449FA729B4114B157336
+/Users/dave/workspace/plan-c 0 2015-05-24 02:28:09 2015-05-23 17:04:23 -
+/Users/dave/workspace/plan-c 0 2015-06-16 05:32:26 2015-05-23 17:04:23 -
+/Users/dave/workspace/plan-c 0 2017-09-14 08:11:11 2015-05-23 17:04:23 -
+/Users/dave/workspace/plan-c/planc.cpp 3964 2015-05-24 02:28:09 2015-05-23 17:06:28 7E26B42E73834CE1AD4B872E7F23CCA5
+/Users/dave/workspace/plan-c/planc.cpp 3964 2015-06-16 05:32:24 2015-05-23 17:06:28 7E26B42E73834CE1AD4B872E7F23CCA5
+/Users/dave/workspace/plan-c/planc.cpp 4019 2015-07-09 06:27:50 2015-07-08 11:23:52 4AAE0EB528F04082B4D5DC7B59F34EA7
+/Users/dave/workspace/plan-c/planc.cpp 4019 2015-07-09 21:35:09 2015-07-08 11:23:52 4AAE0EB528F04082B4D5DC7B59F34EA7
+/Users/dave/workspace/plan-c/planc.cpp 0 2015-09-04 15:15:08 2015-09-04 15:15:08 X
+/Users/dave/workspace/plan-c/planc.cpp 4144 2017-09-14 08:11:10 2017-09-13 16:07:54 4CE7888DB7CA449FA729B4114B157336
 ...
 ```
 
