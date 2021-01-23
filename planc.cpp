@@ -66,8 +66,10 @@ time_t archiveTimestampToUnix(time_t time) {
 }
 
 void printFileRevision(const FileManifestHeader &file, const ArchivedFileVersion &version) {
-	time_t timestamp = archiveTimestampToUnix(version.timestamp);
-	string fileTime = formatDateTime(timestamp, "%Y-%m-%d %H:%M:%S");
+	time_t revisionTimestamp = archiveTimestampToUnix(version.timestamp);
+	string revisionTime = formatDateTime(revisionTimestamp, "%Y-%m-%d %H:%M:%S");
+	time_t lastModifiedTimestamp = archiveTimestampToUnix(version.sourceLastModified);
+	string lastModifiedTime = formatDateTime(lastModifiedTimestamp, "%Y-%m-%d %H:%M:%S");
 	string checksum;
 
 	if (version.isDeleted()) {
@@ -78,10 +80,11 @@ void printFileRevision(const FileManifestHeader &file, const ArchivedFileVersion
 		checksum = binStringToHex(string((char *) version.sourceChecksum, sizeof(version.sourceChecksum)));
 	}
 
-	printf("%.*s %" PRId64 " %.*s %.*s\n",
+	printf("%.*s %" PRId64 " %.*s %.*s %.*s\n",
 		   (int) file.path.length(), file.path.data(),
 		   version.sourceLength,
-		   (int) fileTime.length(), fileTime.data(),
+		   (int) revisionTime.length(), revisionTime.data(),
+		   (int) lastModifiedTime.length(), lastModifiedTime.data(),
 		   (int) checksum.length(),
 		   checksum.data()
 	);
@@ -359,6 +362,15 @@ void restoreFileRevision(const BackupArchive &archive,
 		}
 	} else {
 		throw std::runtime_error("Unsupported filetype " + std::to_string(version.fileType) + " for restore of '" + file.path + "', is this a device file or resource fork?");
+	}
+
+	if (!dryRun) {
+		try {
+			boost::filesystem::last_write_time(destFilename, archiveTimestampToUnix(version.sourceLastModified));
+		} catch (boost::filesystem::filesystem_error &e) {
+			throw std::runtime_error(
+				"Failed to update timestamp of '" + destFilename.string() + "': " + e.what());
+		}
 	}
 
 	// Successfully restored this file
