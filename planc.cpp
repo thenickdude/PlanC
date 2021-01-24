@@ -382,11 +382,23 @@ bool restoreBackupFiles(BackupArchive &archive, BackupArchive::iterator &begin, 
 						bool includeDeleted, TimeMode timeMode, time_t atTime,
 						bool dryRun = true) {
 	bool success = true;
+	long counter = 0;
+
+	// Count matches for reporting progress
+	BackupArchive::iterator temp_iterator = begin;
+	while (temp_iterator != end) {
+		++temp_iterator;
+		++counter;
+	}
+	long num_entries = counter;
+	cerr << "Found " << num_entries << " matching entries..." << endl;
 
 	// For every matched file in the manifest:
+	counter = 0;
 	while (begin != end) {
 		FileManifestHeader file = *begin;
 		++begin;
+		++counter;
 
 		if (file.hasHistory()) {
 			try {
@@ -413,8 +425,10 @@ bool restoreBackupFiles(BackupArchive &archive, BackupArchive::iterator &begin, 
 				}
 
 				if (includeDeleted && hasPreviousNotDeleted) {
+					cout << "[" << counter * 100 / num_entries << "%] ";
 					restoreFileRevision(archive, file, previousNotDeleted.version, previousNotDeleted.blockList, destDirectory, dryRun);
 				} else if (hasPrevious && !previous.version.isDeleted()) {
+					cout << "[" << counter * 100 / num_entries << "%] ";
 					restoreFileRevision(archive, file, previous.version, previous.blockList, destDirectory, dryRun);
 				}
 			} catch (std::exception &e) {
