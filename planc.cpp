@@ -368,8 +368,7 @@ void restoreFileRevision(const BackupArchive &archive,
 		try {
 			boost::filesystem::last_write_time(destFilename, archiveTimestampToUnix(version.sourceLastModified));
 		} catch (boost::filesystem::filesystem_error &e) {
-			throw std::runtime_error(
-				"Failed to update timestamp of '" + destFilename.string() + "': " + e.what());
+			std::cerr << "Failed to update timestamp of '" << destFilename.string() << "': " << e.what() << std::endl;
 		}
 	}
 
