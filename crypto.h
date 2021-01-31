@@ -73,3 +73,5 @@ public:
 
 // Use CIPHER_CODE_* as indexes:
 extern const Code42Cipher* code42Ciphers[];
+
+std::string deriveCustomArchiveKeyV2(const std::string &userID, const std::string &passphrase);

@@ -178,6 +178,28 @@ std::string base64Decode(const std::string buffer) {
 	return base64Decode(buffer.data(), buffer.length());
 }
 
+std::string base64Encode(const char *buffer, int length) {
+    CryptoPP::Base64Encoder encoder(NULL, false);
+
+    encoder.Put((const CryptoPP::byte *)buffer, length);
+    encoder.MessageEnd();
+
+    std::string result;
+
+    int resultSize = encoder.MaxRetrievable();
+
+    if (resultSize) {
+        result.resize(resultSize);
+        encoder.Get((CryptoPP::byte *) &result[0], result.length());
+    }
+
+    return result;
+}
+
+std::string base64Encode(const std::string buffer) {
+    return base64Encode(buffer.data(), buffer.length());
+}
+
 std::string readStreamAsString(std::istream &in) {
 	std::string result;
 	char buffer[4096];

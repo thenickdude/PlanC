@@ -430,6 +430,64 @@ bool restoreBackupFiles(BackupArchive &archive, BackupArchive::iterator &begin, 
 	return success;
 }
 
+std::string readInputLine() {
+	char buffer[1024];
+	char *newLine;
+
+	fgets(buffer, sizeof(buffer), stdin);
+
+	if ((newLine = strchr(buffer, '\r'))
+		|| (newLine = strchr(buffer, '\n'))) {
+		*newLine = '\0';
+	}
+
+	return std::string(buffer);
+}
+
+std::string recoverADBKey(leveldb::DB *adb) {
+	std::string keyType;
+
+    try {
+        keyType = adbReadKey(adb, "\x01" "ArchiveSecurityKeyType");
+    } catch (const std::runtime_error &e) {
+        keyType = "AccountPassword";
+    }
+
+    try {
+        std::string key = adbReadKey(adb, "\x01" "ArchiveDataKey");
+
+        if (key.length() == 0) {
+            throw std::runtime_error("Read key was empty");
+        }
+
+        return key;
+    } catch (std::runtime_error &e) {
+        cerr << "Failed to read ArchiveDataKey from ADB: " << e.what() << endl;
+
+        if (adbKeyExists(adb, "\x01" "ArchiveSecureDataKey")) {
+            cerr << endl
+                 << "It looks like there is an ArchiveSecureDataKey available instead, which is encrypted with "
+                    "your CrashPlan Account Password or Archive Password. Enter that password now to attempt decryption "
+                    "of the key:" << endl;
+
+            cerr << "? ";
+
+            string accountPassword(readInputLine());
+
+            try {
+                std::string key = adbReadSecureKey(adb, "\x01" "ArchiveSecureDataKey", accountPassword);
+
+                return key;
+            } catch (std::runtime_error &e) {
+                cerr << "Failed to read ArchiveSecureDataKey from ADB: " << e.what() << endl;
+                throw;
+            }
+        } else {
+            throw;
+        }
+    }
+}
+
 int main(int argc, char **argv) {
 	po::options_description mainOptions("Options");
 	mainOptions.add_options()
@@ -437,6 +495,7 @@ int main(int argc, char **argv) {
 		("adb", po::value<string>(),
 		 "path to CrashPlan's 'adb' directory to recover a decryption key from (e.g. /Library/Application Support/CrashPlan/conf/adb. Optional)")
 		("key", po::value<string>(), "your backup decryption key (Hexadecimal, not your password. Optional)")
+        ("key64", po::value<string>(), "backup decryption key in base64 (76 characters long. Optional)")
 		("archive", po::value<string>(), "the root of your CrashPlan backup archive")
 
 		("command", po::value<string>(), "command to run (recover-key,list,restore,etc)")
@@ -485,6 +544,7 @@ int main(int argc, char **argv) {
 		cout << allOptions << endl;
 		cout << "Commands:" << endl;
 		cout << "  recover-key   - Recover your backup encryption key from a CrashPlan ADB directory" << endl;
+		cout << "  derive-key    - Derive an encryption key from an archive password" << endl;
 		cout << "  list          - List all filenames that were ever in the backup (incl deleted)" << endl;
 		cout << "  list-detailed - List the newest version of files in the backup (add --at for other times)" << endl;
 		cout << "  list-all      - List all versions of the files in the backup" << endl;
@@ -521,6 +581,10 @@ int main(int argc, char **argv) {
 		key = hexStringToBin(vm["key"].as<string>());
 	}
 
+    if (vm.count("key64")) {
+        key = base64Decode(vm["key64"].as<string>());
+    }
+
 	if (adbPath.length() == 0) {
 		for (auto &path : {"/Library/Application Support/CrashPlan/conf/adb", "/usr/local/crashplan/conf/adb"}) {
 			if (boost::filesystem::is_directory(path)) {
@@ -529,6 +593,25 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
+
+    if (vm["command"].as<string>() == "derive-key") {
+        cerr << "Enter your Crashplan user ID (a number, can be found in conf/my.service.xml or in log files, grep for \"userId\"):" << endl;
+
+        cerr << "? ";
+        
+        std::string userID(readInputLine());
+
+        cerr << endl
+             << "Enter your passphrase:" << endl;
+
+        cerr << "? ";
+
+        std::string customPassword(readInputLine());
+
+        cerr << endl;
+        
+        key = deriveCustomArchiveKeyV2(userID, customPassword);
+    }
 
 	if (key.length() == 0 && adbPath.length() > 0) {
 		leveldb::DB *adb;
@@ -573,55 +656,19 @@ int main(int argc, char **argv) {
 			}
 
 			cerr << endl;
+
+			return EXIT_SUCCESS;
 		}
 
-		try {
-			key = adbReadKey(adb, "\x01" "ArchiveDataKey");
-
-			if (key.length() == 0) {
-				throw std::runtime_error("Read key was empty");
-			}
-		} catch (std::runtime_error &e) {
-			cerr << "Failed to read ArchiveDataKey from ADB: " << e.what() << endl;
-
-			if (adbKeyExists(adb, "\x01" "ArchiveSecureDataKey")) {
-				cerr << endl
-					 << "It looks like there is an ArchiveSecureDataKey available instead, which is encrypted with "
-						 "your CrashPlan Account Password or Archive Password. Enter that password now to attempt decryption "
-						 "of the key:" << endl;
-
-				cerr << "? ";
-
-				char buffer[1024];
-				char *newLine;
-
-				fgets(buffer, sizeof(buffer), stdin);
-
-				if ((newLine = (char *) memchr(buffer, '\r', sizeof(buffer)))
-						|| (newLine = (char *) memchr(buffer, '\n', sizeof(buffer)))) {
-					*newLine = '\0';
-				}
-
-				string accountPassword(buffer);
-
-				try {
-					key = adbReadSecureKey(adb, "\x01" "ArchiveSecureDataKey", accountPassword);
-				} catch (std::runtime_error &e) {
-					cerr << "Failed to read ArchiveSecureDataKey from ADB: " << e.what() << endl;
-					return EXIT_FAILURE;
-				}
-			} else {
-				return EXIT_FAILURE;
-			}
-		}
+		key = recoverADBKey(adb);
 	}
 
 	if (key.length() == 0 && adbPath.length() == 0) {
-		cerr << "Couldn't find your decryption key automatically, you must supply one of the --adb or --key options" << endl;
+		cerr << "Couldn't find your decryption key automatically, you must supply one of the --adb, --key or --key64 options" << endl;
 		return EXIT_FAILURE;
 	}
 
-	if (vm["command"].as<string>() == "recover-key" || vm["command"].as<string>() == "recover-keys") {
+	if (vm["command"].as<string>() == "recover-key" || vm["command"].as<string>() == "recover-keys" || vm["command"].as<string>() == "derive-key") {
 		cerr << "Here's your recovered decryption key (for use with --key):" << endl;
 		cout << binStringToHex(key) << endl;
 		return EXIT_SUCCESS;

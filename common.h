@@ -9,6 +9,8 @@ std::string hexStringToBin(std::string input);
 std::string binStringToHex(std::string input);
 std::string base64Decode(const char *buffer, int length);
 std::string base64Decode(const std::string buffer);
+std::string base64Encode(const char *buffer, int length);
+std::string base64Encode(const std::string buffer);
 
 int64_t readInt64BE(uint8_t* &buffer);
 int64_t readInt64BE(FILE *file);

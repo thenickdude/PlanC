@@ -1,10 +1,12 @@
 #include <cassert>
 
 #include "crypto.h"
+#include "common.h"
 
 #include "cryptopp/blowfish.h"
 #include "cryptopp/aes.h"
 #include "cryptopp/modes.h"
+#include "cryptopp/sha.h"
 
 static const CryptoPP::byte BLOWFISH_IV[CryptoPP::Blowfish::BLOCKSIZE] = {12, 34, 56, 78, 90, 87, 65, 43};
 static const CryptoPP::byte AES_IV[CryptoPP::AES::BLOCKSIZE] = {121, 92, 86, 51, 153, 89, 163, 254, 47, 51, 47, 174, 253, 149, 129, 140};
@@ -17,6 +19,50 @@ const Code42Cipher* code42Ciphers[] = {
 	new Code42AES256(),
 	new Code42AES256RandomIV()
 };
+
+std::string hashPassphraseC42(const std::string &passphrase, const std::string &salt, int iterations) {
+    CryptoPP::SHA1 hasher;
+    CryptoPP::byte currentHash[CryptoPP::SHA1::DIGESTSIZE];
+
+    hasher.Update((const CryptoPP::byte*) salt.data(), salt.length());
+    hasher.Update((const CryptoPP::byte*) passphrase.data(), passphrase.length());
+
+    hasher.Final(currentHash);
+
+    for (int i = 0; i < iterations; i++) {
+        hasher.Update(currentHash, sizeof(currentHash));
+        hasher.Final(currentHash);
+    }
+
+    return base64Encode((char*)currentHash, sizeof(currentHash)) + ":" + base64Encode(salt);
+}
+
+/**
+ * Test vector: userID=1234, passphrase=hello, output=783630546C5438426B3D3A4D54497A4E413D3D5246355A45456D4679447A672F546477576643366C6A6D663056513D3A4D54497A4E413D3D
+ * @param userID 
+ * @param passphrase 
+ * @return 
+ */
+std::string deriveCustomArchiveKeyV2(const std::string &userID, const std::string &passphrase) {
+	const int OUTPUT_LENGTH = 56;
+	const int HASH_ITERATIONS = 50000;
+
+    std::string passphraseReverse(passphrase.rbegin(), passphrase.rend());
+
+    std::string result = hashPassphraseC42(passphrase, userID, HASH_ITERATIONS) + hashPassphraseC42(passphraseReverse, userID, HASH_ITERATIONS);
+	
+	// Extend the hash with null bytes if needed
+	if (result.length() < OUTPUT_LENGTH) {
+		result += std::string(OUTPUT_LENGTH - result.length(), (char) 0x00);
+	}
+
+	// Keep the trailing bytes
+	if (result.length() > OUTPUT_LENGTH) {
+		result = result.substr(result.length() - OUTPUT_LENGTH);
+	}
+
+	return result;
+}
 
 /**
  * Decrypt a value using AES-256 CBC, where the first block is the message IV, and verify the message padding is correct.

@@ -75,12 +75,9 @@ does not support.
 Plan C supports restoring from backup archives where the backup target was a Computer or Folder. Backups sent to Friends 
 probably have additional encryption that I have not examined.
 
-It doesn't support backups encrypted with a ["custom key"](https://support.code42.com/CrashPlan/4/Configuring/Security_Encryption_and_password_options),
-but could probably be extended to do so.
-
 It doesn't support restoring device files (sockets, etc.) or file resource forks (Mac, Windows).
 
-It doesn't support restoring file metadata like permissions and modification times.
+It doesn't support restoring file metadata like permissions.
 
 ## Using Plan C
 
@@ -98,7 +95,25 @@ Here's your recovered decryption key (for use with --key):
 47F28C8B159B44979F420A7721C3104F...
 ```
 
-Now you can use that key with the `--key` argument to decrypt your backup with the other commands.
+If you had Crashplan generate a key for you based on a passphrase, you can use the `derive-key` command instead to 
+re-derive that key:
+
+```
+# ./plan-c derive-key
+
+Enter your Crashplan user ID (a number, can be found in conf/my.service.xml or in log files, grep for "userId"):
+? 1234
+
+Enter your passphrase:
+? helloworld
+
+Here's your recovered decryption key (for use with --key):
+634F4F6259636F44773D3A4D54497A4E413D3D4F6458674E53415130646C6833524D78634675396C443970546A343D3A4D54497A4E413D3D
+```
+
+Now you can use your recovered key with the `--key` argument to decrypt your backup with the other commands.
+
+If you have a Crashplan key which is a 76-character long Base64 key, use the `--key64` argument to supply it instead.
 
 ```
 Options:
@@ -107,6 +122,7 @@ Options:
                          Support/CrashPlan/conf/adb. Optional)
   --key arg              your backup decryption key (Hexadecimal, not your
                          password. Optional)
+  --key64 arg            backup decryption key in base64 (76 characters long)                       
   --archive arg          the root of your CrashPlan backup archive
   --command arg          command to run (recover-key,list,restore,etc)
 
@@ -125,6 +141,7 @@ Restore options:
 
 Commands:
   recover-key   - Recover your backup encryption key from a CrashPlan ADB directory
+  derive-key    - Derive an encryption key from an archive password
   list          - List all filenames that were ever in the backup (incl deleted)
   list-detailed - List the newest version of files in the backup (add --at for other times)
   list-all      - List all versions of the files in the backup
