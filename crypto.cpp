@@ -20,6 +20,79 @@ const Code42Cipher* code42Ciphers[] = {
 	new Code42AES256RandomIV()
 };
 
+static Code42Blowfish448 blowfish;
+
+static uint32_t decodeUInt32BE(const char *buffer) {
+    uint8_t *bytes = (uint8_t *) buffer;
+
+    return (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+}
+
+/**
+ * Check if the given account password can be used to unlock the given ArchiveSecureDataKey/SecureDataKey. The key must be deobfuscated
+ * and base64-decoded first.
+ */
+bool passwordUnlocksSecureDataKey(const std::string &decoded, const std::string &password) {
+    /* ArchiveSecureDataKey has this format:
+     *
+     * Start    Content
+     * 0        Length of key bytes as a big-endian 4 byte integer
+     * 4        Key bytes
+     * 4 + len  Password hash, being:
+     *            Hash - SHA-1 of salt||password, then SHA-1 applied to the resulting hash for 4242 iterations, finally base64 encoded
+     *               : - colon separator
+     *            Salt - 8 byte random salt, base64 encoded
+     */
+    const int SHA1_ITERATIONS = 4242;
+
+    const char *keyAndPasswordHash = decoded.c_str();
+    int keyLen = decodeUInt32BE(keyAndPasswordHash);
+    int hashAndSaltLen = decoded.length() - keyLen - 4;
+
+    const char *key = keyAndPasswordHash + 4;
+    const char *hashAndSalt = key + keyLen;
+
+    const char *separator = strchr(hashAndSalt, ':');
+
+    assert(separator != NULL);
+
+    const char *hash = hashAndSalt;
+    const char *salt = separator + 1;
+    int hashLen = salt - hash - 1;
+    int saltLen = (hashAndSalt + hashAndSaltLen) - salt;
+
+    std::string hashDecoded, saltDecoded;
+
+    saltDecoded = base64Decode(salt, saltLen);
+    hashDecoded = base64Decode(hash, hashLen);
+
+    CryptoPP::SHA1 hasher;
+    CryptoPP::byte currentHash[CryptoPP::SHA1::DIGESTSIZE];
+
+    hasher.Update((const CryptoPP::byte*) saltDecoded.data(), saltDecoded.length());
+    hasher.Update((const CryptoPP::byte*) password.data(), password.length());
+
+    hasher.Final(currentHash);
+
+    for (int i = 0; i < SHA1_ITERATIONS; i++) {
+        hasher.Update(currentHash, sizeof(currentHash));
+        hasher.Final(currentHash);
+    }
+
+    return memcmp(hashDecoded.data(), currentHash, sizeof(currentHash)) == 0;
+}
+
+std::string decryptSecureDataKey(const std::string &decoded, const std::string & password) {
+    const char *keyAndPasswordHash = decoded.c_str();
+
+    // Slice the encrypted key out of the start of the key/password hash pair:
+    int encryptedKeyLen = decodeUInt32BE(keyAndPasswordHash);
+    std::string encryptedKey = std::string(keyAndPasswordHash + 4, encryptedKeyLen);
+
+    // Then decrypt it with the user's account password as the key
+    return blowfish.decrypt(encryptedKey, password);
+}
+
 std::string hashPassphraseC42(const std::string &passphrase, const std::string &salt, int iterations) {
     CryptoPP::SHA1 hasher;
     CryptoPP::byte currentHash[CryptoPP::SHA1::DIGESTSIZE];

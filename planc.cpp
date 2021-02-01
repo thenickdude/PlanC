@@ -38,6 +38,7 @@
 #include "common.h"
 #include "backup.h"
 #include "adb.h"
+#include "properties.h"
 
 using namespace CryptoPP;
 using namespace std;
@@ -488,12 +489,61 @@ std::string recoverADBKey(leveldb::DB *adb) {
     }
 }
 
+std::string recoverCPPropertiesKey(const std::string &filename) {
+    ifstream inFile(filename, ios_base::in | ios_base::binary);
+
+    std::string propertyFile = readStreamAsString(inFile);
+
+    std::string secureDataKey = propertiesReadField(propertyFile, "secureDataKey");
+
+    if (secureDataKey.length() == 0) {
+        throw std::runtime_error(
+            "Failed to read secureDataKey field from cp.properties file, does it actually contain a field with that name?");
+    }
+    
+    secureDataKey = base64Decode(secureDataKey);
+
+    cerr << "The secureDataKey field in cp.properties is encrypted with your CrashPlan Account Password or Archive Password. Enter that password now to attempt decryption "
+            "of the key:" << endl;
+
+    cerr << "? ";
+
+    std::string password(readInputLine());
+    
+    if (!passwordUnlocksSecureDataKey(secureDataKey, password)) {
+        throw std::runtime_error("The provided password couldn't decrypt the secureDataKey, is the password correct?");
+    }
+    
+    return decryptSecureDataKey(secureDataKey, password);
+}
+
+std::string deriveKeyFromPasswordPrompt() {
+    cerr << "Enter your Crashplan user ID (a number, can be found in conf/my.service.xml or in log files, grep for \"userId\"):" << endl;
+
+    cerr << "? ";
+
+    std::string userID(readInputLine());
+
+    cerr << endl
+         << "Enter your passphrase:" << endl;
+
+    cerr << "? ";
+
+    std::string customPassword(readInputLine());
+
+    cerr << endl;
+
+    return deriveCustomArchiveKeyV2(userID, customPassword);
+}
+
 int main(int argc, char **argv) {
 	po::options_description mainOptions("Options");
 	mainOptions.add_options()
 		("help", "shows this page")
 		("adb", po::value<string>(),
 		 "path to CrashPlan's 'adb' directory to recover a decryption key from (e.g. /Library/Application Support/CrashPlan/conf/adb. Optional)")
+        ("cpproperties", po::value<string>(),
+            "path to a cp.properties file containing a 'secureDataKey' field to recover a decryption key from (Optional)")
 		("key", po::value<string>(), "your backup decryption key (Hexadecimal, not your password. Optional)")
         ("key64", po::value<string>(), "backup decryption key in base64 (76 characters long. Optional)")
 		("archive", po::value<string>(), "the root of your CrashPlan backup archive")
@@ -543,7 +593,7 @@ int main(int argc, char **argv) {
 		cout << "Plan C" << endl;
 		cout << allOptions << endl;
 		cout << "Commands:" << endl;
-		cout << "  recover-key   - Recover your backup encryption key from a CrashPlan ADB directory" << endl;
+		cout << "  recover-key   - Recover your backup encryption key from a CrashPlan ADB directory or cp.properties file" << endl;
 		cout << "  derive-key    - Derive an encryption key from an archive password" << endl;
 		cout << "  list          - List all filenames that were ever in the backup (incl deleted)" << endl;
 		cout << "  list-detailed - List the newest version of files in the backup (add --at for other times)" << endl;
@@ -595,25 +645,19 @@ int main(int argc, char **argv) {
 	}
 
     if (vm["command"].as<string>() == "derive-key") {
-        cerr << "Enter your Crashplan user ID (a number, can be found in conf/my.service.xml or in log files, grep for \"userId\"):" << endl;
-
-        cerr << "? ";
-        
-        std::string userID(readInputLine());
-
-        cerr << endl
-             << "Enter your passphrase:" << endl;
-
-        cerr << "? ";
-
-        std::string customPassword(readInputLine());
-
-        cerr << endl;
-        
-        key = deriveCustomArchiveKeyV2(userID, customPassword);
+        key = deriveKeyFromPasswordPrompt();
     }
 
-	if (key.length() == 0 && adbPath.length() > 0) {
+    if (key.length() == 0 && vm.count("cpproperties")) {
+        try {
+            key = recoverCPPropertiesKey(vm["cpproperties"].as<string>());
+        } catch (std::runtime_error &e) {
+            cerr << e.what() << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    if (key.length() == 0 && adbPath.length() > 0) {
 		leveldb::DB *adb;
 
 		try {
@@ -664,7 +708,7 @@ int main(int argc, char **argv) {
 	}
 
 	if (key.length() == 0 && adbPath.length() == 0) {
-		cerr << "Couldn't find your decryption key automatically, you must supply one of the --adb, --key or --key64 options" << endl;
+		cerr << "Couldn't find your decryption key automatically, you must supply one of the --adb, --cpproperties, --key or --key64 options" << endl;
 		return EXIT_FAILURE;
 	}
 

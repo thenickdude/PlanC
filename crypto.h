@@ -75,3 +75,6 @@ public:
 extern const Code42Cipher* code42Ciphers[];
 
 std::string deriveCustomArchiveKeyV2(const std::string &userID, const std::string &passphrase);
+
+bool passwordUnlocksSecureDataKey(const std::string &decoded, const std::string &password);
+std::string decryptSecureDataKey(const std::string &decoded, const std::string &password);

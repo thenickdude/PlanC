@@ -81,8 +81,13 @@ It doesn't support restoring file metadata like permissions.
 
 ## Using Plan C
 
-First use Plan C to recover your decryption key. Because of the potential for Plan C to inadvertently corrupt the adb database, it is best 
-to point it to a copy of the adb directory:
+### Recovering your decryption key
+
+First you must use Plan C to recover your decryption key. 
+
+#### Recovery from ADB
+Your decryption key is stored in CrashPlan's adb database. Because of the potential for Plan C to inadvertently corrupt 
+the adb database, it is best to point it to a copy of the adb directory:
 
 ```bash
 plan-c --adb path/to/your/adb-copy/ recover-key 
@@ -94,6 +99,8 @@ The output should look like:
 Here's your recovered decryption key (for use with --key):
 47F28C8B159B44979F420A7721C3104F...
 ```
+
+#### Recovery from a passphrase
 
 If you had Crashplan generate a key for you based on a passphrase, you can use the `derive-key` command instead to 
 re-derive that key:
@@ -111,15 +118,37 @@ Here's your recovered decryption key (for use with --key):
 634F4F6259636F44773D3A4D54497A4E413D3D4F6458674E53415130646C6833524D78634675396C443970546A343D3A4D54497A4E413D3D
 ```
 
-Now you can use your recovered key with the `--key` argument to decrypt your backup with the other commands.
+#### Recovery from cp.properties
 
-If you have a Crashplan key which is a 76-character long Base64 key, use the `--key64` argument to supply it instead.
+In some CrashPlan installs, an archive key can be found in the "secureDataKey" field of a `cp.properties` file.
+If you have one of these files that contains this field, you can recover the key like so:
+
+```
+# ./plan-c recover-key --cpproperties cp.properties
+
+The secureDataKey field in cp.properties is encrypted with your CrashPlan Account Password or Archive Password. Enter that password now to attempt decryption of the key:
+? helloworld
+
+Here's your recovered decryption key (for use with --key):
+634F4F6259636F44773D3A4D54497A4E413D3D4F6458674E53415130646C6833524D78634675396C443970546A343D3A4D54497A4E413D3D
+```
+
+#### Custom 76-character decryption key
+If you have a Crashplan custom encryption key which is a 76-character long Base64 string, use the `--key64` argument to 
+supply it directly to Plan C.
+
+### Calling Plan C
+
+Now you can use your recovered key with the `--key` argument to decrypt your backup with the other commands.
 
 ```
 Options:
   --adb arg              path to CrashPlan's 'adb' directory to recover a
                          decryption key from (e.g. /Library/Application
                          Support/CrashPlan/conf/adb. Optional)
+  --cpproperties arg     path to a cp.properties file containing a
+                         'secureDataKey' field to recover a decryption key from
+                         (Optional)
   --key arg              your backup decryption key (Hexadecimal, not your
                          password. Optional)
   --key64 arg            backup decryption key in base64 (76 characters long)                       
@@ -232,10 +261,4 @@ You can use `--prefix` and `--filename` to limit the files that will be restored
 
 If you don't want to use one of the precompiled releases from the Releases tab above, you can build Plan C yourself. You
 need a C++ compiler, make and cmake installed (e.g. `apt install build-essential make cmake` on Ubuntu Xenial).
-Clone this repository, then run this command to fetch the required libraries:
-
-```bash
-git submodule update --init
-``` 
-
-Then run `make`, and all of the libraries will be built, followed by Plan C itself.
+Clone this repository, then run `make`, and all of the libraries will be fetched and built, followed by Plan C itself.
