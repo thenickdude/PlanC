@@ -257,6 +257,16 @@ Use `--at` to restore an earlier snapshot of the archive.
 
 You can use `--prefix` and `--filename` to limit the files that will be restored.
 
+## Troubleshooting
+
+If you receive an error like this:
+
+    Failed to open block manifest (cpbf0000000000008341334/cpbmf) for reading: Too many open files
+
+This is triggered by `ulimit`'s file descriptor limits. Remove the open file handle limit before running Plan C like so: 
+
+    ulimit -n unlimited    
+
 ## Building Plan C
 
 If you don't want to use one of the precompiled releases from the Releases tab above, you can build Plan C yourself. You
