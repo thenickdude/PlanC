@@ -32,12 +32,12 @@ cpp_properties/build :
 	cd cpp_properties/build && BOOST_ROOT=../../boost cmake ..
 	cd cpp_properties/build && make
 
-boost/boost/ :
+boost/boost/ : zlib/libz.a
 	cd boost && git submodule update --init && ./bootstrap.sh
+	echo "using zlib : 1.2.11 : <include>$(ZLIB_PATH) <search>$(ZLIB_PATH) ;" >> boost/project-config.jam
 	cd boost && ./b2 headers
 
 $(BOOST_LIBS) : boost/boost/ zlib/libz.a
-	echo "using zlib : 1.2.11 : <include>$(ZLIB_PATH) <search>$(ZLIB_PATH) <name>libz ;" > project-config.jam
 	cd boost && ./b2 stage --with-program_options --with-filesystem --with-iostreams --with-date_time --with-system -s NO_BZIP2=1
 
 release : plan-c
