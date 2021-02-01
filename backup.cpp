@@ -94,7 +94,7 @@ std::string decryptEncryptedPath(std::string path, const std::string &key) {
 		}
 	}
 
-	throw std::runtime_error("decryptEncryptedPath: Unsupported path format");
+	throw std::runtime_error("decryptEncryptedPath: Unsupported path format, magic = " + std::to_string(magic) + ", version = " + std::to_string(version) + ", encryption = " + std::to_string(encryption));
 }
 
 BackupArchive::iterator BackupArchive::begin(FilenameMatchMode matchMode, const std::string &search) {
