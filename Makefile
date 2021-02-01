@@ -21,7 +21,7 @@ leveldb/out-static/libleveldb.a :
 	cd leveldb && make
 
 snappy/libsnappy.a :
-	cd snappy && cmake . && make
+	cd snappy && cmake . -DCMAKE_CXX_STANDARD=14 -DSNAPPY_BUILD_TESTS=OFF && make
 
 zlib/libz.a :
 	cd zlib && ./configure && make
