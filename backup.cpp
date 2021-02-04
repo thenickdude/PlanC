@@ -72,29 +72,28 @@ void readFileManifestHeader(FILE *file, FileManifestHeader &header) {
 }
 
 std::string decryptEncryptedPath(std::string path, const std::string &key) {
-	const int HEADER_LEN = 6;
+	const int MODERN_HEADER_LEN = 6;
+	
+	if (path.length() >= MODERN_HEADER_LEN) {
+		uint8_t *bytes = (uint8_t *) path.data();
 
-	if (path.length() <= HEADER_LEN) {
-		throw std::runtime_error("decryptEncryptedPath: Path too short");
-	}
+		int32_t magic = readInt32BE(bytes);
+		uint8_t version = readUInt8(bytes);
+		uint8_t encryption = readUInt8(bytes);
 
-	uint8_t *bytes = (uint8_t *) path.data();
+		if (magic == -420042000 && version == 1) {
+			path = path.substr(MODERN_HEADER_LEN);
 
-	int32_t magic = readInt32BE(bytes);
-	uint8_t version = readUInt8(bytes);
-	uint8_t encryption = readUInt8(bytes);
-
-	if (magic == -420042000 && version == 1) {
-		path = path.substr(HEADER_LEN);
-
-		if (encryption < CIPHER_CODE_MIN || encryption > CIPHER_CODE_MAX) {
-			throw std::runtime_error("Unsupported filename cipher " + std::to_string(encryption));
-		} else {
-			return code42Ciphers[encryption]->decrypt(path, key);
+			if (encryption < CIPHER_CODE_MIN || encryption > CIPHER_CODE_MAX) {
+				throw std::runtime_error("Unsupported filename cipher " + std::to_string(encryption));
+			} else {
+				return code42Ciphers[encryption]->decrypt(path, key);
+			}
 		}
 	}
-
-	throw std::runtime_error("decryptEncryptedPath: Unsupported path format, magic = " + std::to_string(magic) + ", version = " + std::to_string(version) + ", encryption = " + std::to_string(encryption));
+	
+	// Assume this the older headerless format that just hard-coded the use of Blowfish-128
+	return code42Ciphers[CIPHER_CODE_BLOWFISH_128]->decrypt(path, key);
 }
 
 BackupArchive::iterator BackupArchive::begin(FilenameMatchMode matchMode, const std::string &search) {
@@ -200,7 +199,7 @@ void BackupArchiveFileIterator::findNextFile() {
 				fclose(manifestFile);
 				break;
 			}
-
+			
 			currentFile.path = decryptEncryptedPath(currentFile.path, key);
 
 			// Does this path meet our search conditions?
