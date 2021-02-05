@@ -192,6 +192,8 @@ void BackupArchiveFileIterator::findNextFile() {
 		bool found;
 
 		do {
+		    off_t start = ftello(manifestFile);
+		    
 			readFileManifestHeader(manifestFile, currentFile);
 
 			if (feof(manifestFile)) {
@@ -200,7 +202,12 @@ void BackupArchiveFileIterator::findNextFile() {
 				break;
 			}
 			
-			currentFile.path = decryptEncryptedPath(currentFile.path, key);
+			try {
+                currentFile.path = decryptEncryptedPath(currentFile.path, key);
+            } catch (const std::exception &e) {
+			    std::cerr << "Failed to decrypt path for file at offset " << std::to_string(start) << std::endl;
+			    throw;
+			}
 
 			// Does this path meet our search conditions?
 			switch (matchMode) {
