@@ -108,14 +108,35 @@ re-derive that key:
 ```
 # ./plan-c derive-key
 
-Enter your Crashplan user ID (a number, can be found in conf/my.service.xml or in log files, grep for "userId"):
-? 1234
+Enter your Crashplan user ID (a number, can be found in conf/my.service.xml or in log files, grep for "userId"), or press enter if you don't know it:
+? 123
 
 Enter your passphrase:
-? helloworld
+? Hello World!
 
 Here's your recovered decryption key (for use with --key):
-634F4F6259636F44773D3A4D54497A4E413D3D4F6458674E53415130646C6833524D78634675396C443970546A343D3A4D54497A4E413D3D
+35577843654F79774C6F424731755A46493D3A4D54497A7074677373784E5465444E42656A6E46445672596C6E69454C386F3D3A4D54497A
+```
+
+If you don't know your user ID, you can just press enter at that prompt and a brute-force search will be used to guess
+your user ID instead. You also need to provide the --cpproperties argument which points to the cp.properties file in your
+backup archive:
+
+```
+./plan-c derive-key --cpproperties 32141451345134/cp.properties
+
+Enter your Crashplan user ID (a number, can be found in conf/my.service.xml or in log files, grep for "userId"), or press enter if you don't know it:
+?
+
+Since you didn't provide a userid, it will be recovered using a brute-force search instead
+
+Enter your passphrase:
+? Hello World!
+
+Brute-forcing your userID now (up to a maximum of #100,000)... expect this to take up to 5-10 minutes
+Recovered user ID: 123
+Here's your recovered decryption key (for use with --key):
+35577843654F79774C6F424731755A46493D3A4D54497A7074677373784E5465444E42656A6E46445672596C6E69454C386F3D3A4D54497A
 ```
 
 #### Recovery from cp.properties

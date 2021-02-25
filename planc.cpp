@@ -1,5 +1,4 @@
 #define __STDC_FORMAT_MACROS
-#define _POSIX_C_SOURCE 200112L
 #define _FILE_OFFSET_BITS 64
 
 #include <inttypes.h>
@@ -13,11 +12,16 @@
 #include <cstdlib>
 #include <ctype.h>
 #include <sstream>
+#include <thread>
+#include <atomic>
 
 #include "zstr/src/zstr.hpp"
 
 #include "leveldb/db.h"
 
+#include "boost/algorithm/hex.hpp"
+#include "boost/asio/post.hpp"
+#include "boost/asio/thread_pool.hpp"
 #include "boost/program_options.hpp"
 #include "boost/filesystem/operations.hpp"
 #include "boost/iostreams/stream.hpp"
@@ -31,6 +35,7 @@
 #define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
 
 #include "cryptopp/md5.h"
+#include "cryptopp/sha.h"
 #include "cryptopp/channels.h"
 #include "cryptopp/filters.h"
 #include "cryptopp/files.h"
@@ -517,23 +522,106 @@ std::string recoverCPPropertiesKey(const std::string &filename) {
     return decryptSecureDataKey(secureDataKey, password);
 }
 
-std::string deriveKeyFromPasswordPrompt() {
-    cerr << "Enter your Crashplan user ID (a number, can be found in conf/my.service.xml or in log files, grep for \"userId\"):" << endl;
+std::string deriveKeyFromPasswordPrompt(std::string cpProperties) {
+    cerr << "Enter your Crashplan user ID (a number, can be found in conf/my.service.xml or in log files, grep for \"userId\"), or press enter if you don't know it:" << endl;
 
     cerr << "? ";
 
-    std::string userID(readInputLine());
+    const std::string userID(readInputLine());
 
+    if (userID.length() == 0) {
+        cerr << "Since you didn't provide a userid, it will be recovered using a brute-force search instead" << endl;
+
+        if (cpProperties.length() == 0) {
+            cerr
+                << "You must supply a --cpproperties argument which points to the cp.properties file in your backup archive"
+                << endl;
+            exit(EXIT_FAILURE);
+        }
+    }
+    
     cerr << endl
          << "Enter your passphrase:" << endl;
 
     cerr << "? ";
 
-    std::string customPassword(readInputLine());
+    const std::string customPassword(readInputLine());
 
     cerr << endl;
+    
+    if (userID.length() > 0) {
+        return deriveCustomArchiveKeyV2(userID, customPassword);
+    }
+    
+    ifstream inFile(cpProperties, ios_base::in | ios_base::binary);
+    std::string propertyFile = readStreamAsString(inFile);
+    std::string dataKeyChecksumStr = propertiesReadField(propertyFile, "dataKeyChecksum");
+    CryptoPP::byte dataKeyChecksum[CryptoPP::Weak::MD5::DIGESTSIZE];
+    
+    if (dataKeyChecksumStr.length() == 0) {
+        throw std::runtime_error(
+            "Failed to read dataKeyChecksum field from cp.properties file, does it actually contain a field with that name?");
+    }
+    
+    if (dataKeyChecksumStr.length() != sizeof(dataKeyChecksum) * 2) {
+        throw std::runtime_error(
+            "Expected dataKeyChecksum to be " + std::to_string(sizeof(dataKeyChecksum)) + " characters, " + std::to_string(dataKeyChecksumStr.length()) + " found");
+    }
+    
+    boost::algorithm::unhex(dataKeyChecksumStr, dataKeyChecksum);
+    
+    std::cerr << "Brute-forcing your userID now (up to a maximum of #100,000)... expect this to take up to 5-10 minutes" << std::endl;
+    
+    boost::asio::thread_pool pool;
 
-    return deriveCustomArchiveKeyV2(userID, customPassword);
+    const int CHUNK_SIZE = 50;
+    std::atomic<int> recoveredUserID(0);
+    
+    for (int chunkStart = 1; chunkStart < 100000; chunkStart += CHUNK_SIZE) {
+        boost::asio::post(pool, [chunkStart, customPassword, dataKeyChecksum, &recoveredUserID]() {
+            for (int userID = chunkStart; userID < chunkStart + CHUNK_SIZE; userID++) {
+                if (recoveredUserID.load() != 0) {
+                    // Another thread already found the prize
+                    break;
+                }
+                
+                std::string userIDString = std::to_string(userID);
+
+                std::string key = deriveCustomArchiveKeyV2(userIDString, customPassword);
+
+                CryptoPP::Weak::MD5 hasher;
+                CryptoPP::byte currentHash[CryptoPP::Weak::MD5::DIGESTSIZE];
+
+                hasher.Update((const CryptoPP::byte *) key.data(), key.length());
+                hasher.Final(currentHash);
+
+                bool found = true;
+
+                for (int i = 0; i < sizeof(currentHash); i++) {
+                    if (currentHash[i] != dataKeyChecksum[i]) {
+                        found = false;
+                        break;
+                    }
+                }
+                
+                if (found) {
+                    recoveredUserID.store(userID);
+                    break;
+                }
+            }
+        });
+    }
+    
+    pool.join();
+    
+    if (recoveredUserID.load() == 0) {
+        cerr << "Failed to brute-force userID, password is probably incorrect" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    
+    cout << "Recovered user ID: " << std::to_string(recoveredUserID.load()) << std::endl;
+
+    return deriveCustomArchiveKeyV2(std::to_string(recoveredUserID.load()), customPassword);
 }
 
 int main(int argc, char **argv) {
@@ -645,7 +733,7 @@ int main(int argc, char **argv) {
 	}
 
     if (vm["command"].as<string>() == "derive-key") {
-        key = deriveKeyFromPasswordPrompt();
+        key = deriveKeyFromPasswordPrompt(vm.count("cpproperties") ? vm["cpproperties"].as<string>() : "");
     }
 
     if (key.length() == 0 && vm.count("cpproperties")) {
