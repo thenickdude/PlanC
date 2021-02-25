@@ -522,7 +522,7 @@ std::string recoverCPPropertiesKey(const std::string &filename) {
     return decryptSecureDataKey(secureDataKey, password);
 }
 
-std::string deriveKeyFromPasswordPrompt(std::string cpProperties) {
+std::string deriveKeyFromPasswordPrompt(std::string cpProperties, int32_t maxUserID) {
     cerr << "Enter your Crashplan user ID (a number, can be found in conf/my.service.xml or in log files, grep for \"userId\"), or press enter if you don't know it:" << endl;
 
     cerr << "? ";
@@ -570,16 +570,16 @@ std::string deriveKeyFromPasswordPrompt(std::string cpProperties) {
     
     boost::algorithm::unhex(dataKeyChecksumStr, dataKeyChecksum);
     
-    std::cerr << "Brute-forcing your userID now (up to a maximum of #100,000)... expect this to take up to 5-10 minutes" << std::endl;
+    std::cerr << "Brute-forcing your userID now (up to a maximum of " << std::to_string(maxUserID) << ")... expect this to take 30 minutes per million scanned on a workstation" << std::endl;
     
     boost::asio::thread_pool pool;
 
-    const int CHUNK_SIZE = 50;
+    const int chunkSize = std::max(maxUserID / 1024, 50);
     std::atomic<int> recoveredUserID(0);
     
-    for (int chunkStart = 1; chunkStart < 100000; chunkStart += CHUNK_SIZE) {
-        boost::asio::post(pool, [chunkStart, customPassword, dataKeyChecksum, &recoveredUserID]() {
-            for (int userID = chunkStart; userID < chunkStart + CHUNK_SIZE; userID++) {
+    for (int chunkStart = 1; chunkStart <= maxUserID; chunkStart += chunkSize) {
+        boost::asio::post(pool, [chunkStart, chunkSize, customPassword, dataKeyChecksum, &recoveredUserID]() {
+            for (int userID = chunkStart; userID < chunkStart + chunkSize; userID++) {
                 if (recoveredUserID.load() != 0) {
                     // Another thread already found the prize
                     break;
@@ -605,7 +605,7 @@ std::string deriveKeyFromPasswordPrompt(std::string cpProperties) {
                 }
                 
                 if (found) {
-                    recoveredUserID.store(userID);
+                    recoveredUserID = userID;
                     break;
                 }
             }
@@ -614,14 +614,14 @@ std::string deriveKeyFromPasswordPrompt(std::string cpProperties) {
     
     pool.join();
     
-    if (recoveredUserID.load() == 0) {
+    if (recoveredUserID == 0) {
         cerr << "Failed to brute-force userID, password is probably incorrect" << std::endl;
         exit(EXIT_FAILURE);
     }
     
-    cout << "Recovered user ID: " << std::to_string(recoveredUserID.load()) << std::endl;
+    cout << "Recovered user ID: " << std::to_string(recoveredUserID) << std::endl;
 
-    return deriveCustomArchiveKeyV2(std::to_string(recoveredUserID.load()), customPassword);
+    return deriveCustomArchiveKeyV2(std::to_string(recoveredUserID), customPassword);
 }
 
 int main(int argc, char **argv) {
@@ -632,6 +632,8 @@ int main(int argc, char **argv) {
 		 "path to CrashPlan's 'adb' directory to recover a decryption key from (e.g. /Library/Application Support/CrashPlan/conf/adb. Optional)")
         ("cpproperties", po::value<string>(),
             "path to a cp.properties file containing a 'secureDataKey' field to recover a decryption key from (Optional)")
+        ("max-userid", po::value<int32_t>(),
+            "maximum user ID to consider when performing a brute-force search with derive-key (default 10000000)")
 		("key", po::value<string>(), "your backup decryption key (Hexadecimal, not your password. Optional)")
         ("key64", po::value<string>(), "backup decryption key in base64 (76 characters long. Optional)")
 		("archive", po::value<string>(), "the root of your CrashPlan backup archive")
@@ -733,7 +735,10 @@ int main(int argc, char **argv) {
 	}
 
     if (vm["command"].as<string>() == "derive-key") {
-        key = deriveKeyFromPasswordPrompt(vm.count("cpproperties") ? vm["cpproperties"].as<string>() : "");
+        key = deriveKeyFromPasswordPrompt(
+            vm.count("cpproperties") ? vm["cpproperties"].as<string>() : "", 
+            vm.count("max-userid") ? vm["max-userid"].as<int32_t>() : 10000000
+        );
     }
 
     if (key.length() == 0 && vm.count("cpproperties")) {

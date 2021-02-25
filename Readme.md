@@ -170,6 +170,8 @@ Options:
   --cpproperties arg     path to a cp.properties file containing a
                          'secureDataKey' field to recover a decryption key from
                          (Optional)
+  --max-userid           maximum user ID to consider when performing a brute-force
+                         search with derive-key (default 10000000)
   --key arg              your backup decryption key (Hexadecimal, not your
                          password. Optional)
   --key64 arg            backup decryption key in base64 (76 characters long)                       
