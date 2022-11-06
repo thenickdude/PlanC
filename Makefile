@@ -1,4 +1,4 @@
-.PHONY: all clean release
+.PHONY: all clean release clean-deps
 
 SOURCE = planc.cpp adb.cpp common.cpp backup.cpp blocks.cpp crypto.cpp properties.cpp
 SUBMODULES = cryptopp/Readme.txt zstr/README.org zlib/README boost/README.md leveldb/README.md snappy/README.md cpp_properties/README.md
@@ -51,3 +51,11 @@ plan-c : $(SOURCE) $(SUBMODULES) $(STATIC_LIBS) boost/boost/
 
 clean :
 	rm -f plan-c
+
+clean-deps :
+	cd cryptopp && make clean || true
+	cd boost && ./b2 --clean || true
+	cd snappy && make clean || true
+	cd leveldb && make clean || true
+	cd zlib && make clean || true
+	cd snappy && make clean || true
