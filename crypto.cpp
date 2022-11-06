@@ -71,9 +71,9 @@ bool passwordUnlocksSecureDataKey(const std::string &decoded, const std::string 
 
     hasher.Update((const CryptoPP::byte*) saltDecoded.data(), saltDecoded.length());
     hasher.Update((const CryptoPP::byte*) password.data(), password.length());
-
+    
     hasher.Final(currentHash);
-
+    
     for (int i = 0; i < SHA1_ITERATIONS; i++) {
         hasher.Update(currentHash, sizeof(currentHash));
         hasher.Final(currentHash);
@@ -93,7 +93,21 @@ std::string decryptSecureDataKey(const std::string &decoded, const std::string &
     return blowfish.decrypt(encryptedKey, password);
 }
 
-std::string hashPassphraseC42(const std::string &passphrase, const std::string &salt, int iterations) {
+/**
+ * Hash a password using Code42 SHA-1 scheme, the resulting string containing:
+ * 
+ *    Hash - SHA-1 of salt||password, then SHA-1 applied to the resulting hash for 4242 iterations, finally base64 encoded
+ *       : - colon separator
+ *    Salt - 8 byte random salt, base64 encoded
+ * 
+ * Test vector: passphrase = hello, salt = world, output = Dl/cd5yqjjk5vkd29/ZGF/GVDu4=:d29ybGQ=
+ * 
+ * @param passphrase 
+ * @param salt 
+ * @param iterations 
+ * @return 
+ */
+std::string hashPassphraseC42SHA1(const std::string &passphrase, const std::string &salt, int iterations = 4242) {
     CryptoPP::SHA1 hasher;
     CryptoPP::byte currentHash[CryptoPP::SHA1::DIGESTSIZE];
 
@@ -122,7 +136,7 @@ std::string deriveCustomArchiveKeyV2(const std::string &userID, const std::strin
 
     std::string passphraseReverse(passphrase.rbegin(), passphrase.rend());
 
-    std::string result = hashPassphraseC42(passphrase, userID, HASH_ITERATIONS) + hashPassphraseC42(passphraseReverse, userID, HASH_ITERATIONS);
+    std::string result = hashPassphraseC42SHA1(passphrase, userID, HASH_ITERATIONS) + hashPassphraseC42SHA1(passphraseReverse, userID, HASH_ITERATIONS);
 	
 	// Extend the hash with null bytes if needed
 	if (result.length() < OUTPUT_LENGTH) {
