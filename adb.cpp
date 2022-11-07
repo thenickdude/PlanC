@@ -4,30 +4,13 @@
 #include "adb.h"
 #include "common.h"
 #include "crypto.h"
-
-#include "leveldb/comparator.h"
+#include "comparator.h"
 
 #include "cryptopp/sha.h"
 
 static const std::string OBFUSCATION_KEY = "HWANToDk3L6hcXryaU95X6fasmufN8Ok";
 
 static Code42AES256RandomIV aes256;
-
-class Code42Comparator : public leveldb::Comparator {
-	public:
-	Code42Comparator() { }
-
-	virtual const char* Name() const {
-		return "code42.archive.v2.virtual.table";
-	}
-
-	virtual int Compare(const leveldb::Slice& a, const leveldb::Slice& b) const {
-		return a.compare(b);
-	}
-
-	void FindShortestSeparator(std::string*, const leveldb::Slice&) const {}
-	void FindShortSuccessor(std::string*) const {}
-};
 
 leveldb::DB* adbOpen(std::string adbPath) {
 	leveldb::DB* db;
