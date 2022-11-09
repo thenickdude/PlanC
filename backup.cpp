@@ -2,6 +2,11 @@
 #define _POSIX_C_SOURCE 200112L
 #define _FILE_OFFSET_BITS 64
 
+#ifdef _WIN32
+// lseek
+#include <io.h>
+#endif
+
 #include "backup.h"
 
 std::vector<int64_t> resolveBlockList(std::vector<int64_t> thisList, std::vector<int64_t> previousList) {

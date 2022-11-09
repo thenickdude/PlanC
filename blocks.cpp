@@ -8,6 +8,11 @@
 #include <cstdio>
 #include <errno.h>
 
+#ifdef _WIN32
+// lseek
+#include <io.h>
+#endif
+
 #include "boost/filesystem/operations.hpp"
 #include "boost/range/iterator_range.hpp"
 

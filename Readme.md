@@ -293,5 +293,11 @@ This is triggered by `ulimit`'s file descriptor limits. Remove the open file han
 ## Building Plan C
 
 If you don't want to use one of the precompiled releases from the Releases tab above, you can build Plan C yourself. You
-need a C++ compiler, make and cmake installed (e.g. `apt install build-essential make cmake` on Ubuntu Xenial).
+need a C++ compiler, make and cmake installed (e.g. `apt install build-essential make cmake git` on Ubuntu Xenial).
 Clone this repository, then run `make`, and all of the libraries will be fetched and built, followed by Plan C itself.
+
+On Windows, build Plan C using [Msys2](https://www.msys2.org/)'s UCRT64 environment, and install these packages:
+
+```
+pacman -S git mingw-w64-ucrt-x86_64-{make,cmake,ninja,gcc}
+```
