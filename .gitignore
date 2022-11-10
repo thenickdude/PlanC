@@ -1,5 +1,6 @@
 /.idea/
 /plan-c
+/plan-c.exe
 /zlib
 /boost
 /cryptopp
@@ -7,3 +8,4 @@
 /snappy
 /zstr
 project-config.jam
+*.o

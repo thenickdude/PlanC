@@ -26,7 +26,8 @@ this key. **It's possible that the CrashPlan client will erase the key automatic
 So **you should immediately make a backup copy of your adb directory** to preserve the key. First stop the CrashPlan
 daemon so it releases its lock on the directory:
 
-Windows - `net stop CrashPlanService`  
+Windows (CrashPlan Home) - `net stop CrashPlanService` 
+Windows (CrashPlan Small Business) - `net stop "Code42 Service"`
 macOS - `sudo launchctl unload /Library/LaunchDaemons/com.crashplan.engine.plist`  
 Linux - `sudo service crashplan stop`  
 Other - https://support.code42.com/CrashPlan/4/Troubleshooting/Stop_and_start_the_Code42_app_service
@@ -85,7 +86,8 @@ It doesn't support restoring file metadata like permissions.
 
 First you must use Plan C to recover your decryption key. 
 
-#### Recovery from ADB
+#### Recovery from ADB - CrashPlan Home
+
 Your decryption key is stored in CrashPlan's adb database. Because of the potential for Plan C to inadvertently corrupt 
 the adb database, it is best to point it to a copy of the adb directory:
 
@@ -99,6 +101,25 @@ The output should look like:
 Here's your recovered decryption key (for use with --key):
 47F28C8B159B44979F420A7721C3104F...
 ```
+
+#### Recovery from ADB - CrashPlan Small Business
+
+In this version, the adb directory is encrypted using a key that is specific to the computer that CrashPlan was 
+installed on (so key recovery must be run on that computer).
+
+Currently, Plan C only supports adb directories created on Windows.
+
+On Windows, the adb directory is encrypted by the "Local System" account, so we need to use a tool called "PsExec" to 
+run Plan C as Local System. Download it from here and put PsExec.exe into the same directory as Plan C:
+
+https://learn.microsoft.com/en-us/sysinternals/downloads/psexec
+
+Now press the start button and type "cmd". Right click on "command prompt" and click "run as administrator". Change into
+the Plan C directory and run: 
+
+    psexec.exe -c -s plan-c.exe recover-key --adb c:\your\copy\of\adb
+
+Replace the pathname with the full path to a copy of the adb directory. 
 
 #### Recovery from a passphrase
 

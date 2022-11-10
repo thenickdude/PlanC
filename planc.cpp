@@ -769,7 +769,7 @@ int main(int argc, char **argv) {
 		}
 
 		if (vm["command"].as<string>() == "recover-keys") {
-			cerr << "All unobfuscated values from adb:" << endl;
+			cerr << "All deobfuscated values from adb:" << endl;
 
 			std::vector<std::pair<std::string, std::string>> values;
 
