@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 
+void adbInitPlatformKeys(const std::string &macOSSerial, const std::string &linuxSerial);
 leveldb::DB* adbOpen(std::string adbPath);
 bool adbKeyExists(leveldb::DB* db, std::string key);
 std::string adbReadKey(leveldb::DB* db, std::string key);

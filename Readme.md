@@ -14,6 +14,8 @@ restore *every* revision of *every* file from my CrashPlan archive before the sh
 I created Plan C to solve this issue. Plan C will be able to restore files from your locally-stored CrashPlan Home backup 
 even after the shutdown date. 
 
+**New:** Plan C also now supports modern versions of CrashPlan for Small Business!
+
 ## Decryption keys
 
 Code42 is able to break your backups remotely because their servers hold your backup decryption key in
@@ -36,7 +38,7 @@ CrashPlan Small Business:
 
 Windows - `net stop "Code42 Service"`   
 macOS - `sudo launchctl unload /Library/LaunchDaemons/com.code42.service.plist`   
-Linux - `sudo service crashplan stop`  
+Linux - `sudo /usr/local/crashplan/bin/service.sh stop`  
 Other - https://support.code42.com/Incydr/Agent/Troubleshooting/Stop_and_start_the_Code42_app_service
 
 Now copy the adb directory somewhere safe, here's where to find it:
@@ -45,7 +47,22 @@ Windows - `C:\ProgramData\CrashPlan\conf\adb` or `C:\Users\<username>\AppData\<L
 macOS - `/Library/Application Support/CrashPlan/conf/adb` or `~/Library/Application Support/CrashPlan/conf/adb`  
 Linux - `/usr/local/crashplan/conf/adb`  
 
-On Windows, files in the conf directory are owned by SYSTEM, so a regular user can't open or copy them without first taking ownership of them.
+On Windows, files in the conf directory are owned by SYSTEM, so a regular user can't open or copy them without first 
+taking ownership of them.
+
+On macOS, copy the directory to your desktop using sudo like so:
+
+```bash
+sudo cp -a /Library/Application\ Support/CrashPlan/conf/adb ~/Desktop/
+sudo chown -R $USER ~/Desktop/adb
+```
+
+On Linux:
+
+```bash
+sudo cp -a /usr/local/crashplan/conf/adb ~/Desktop/
+sudo chown -R $USER ~/Desktop/adb
+```
 
 The adb directory should contain a list of files similar to this:
 
@@ -74,8 +91,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Supported environment
 
-Plan C has only been tested with backups maintained with CrashPlan 4.8. Older databases may use legacy features that Plan C
-does not support.
+Plan C has only been tested with backups maintained with CrashPlan 4.8 and CrashPlan for Small Business
+10.4. Older databases may use legacy features that Plan C does not support.
 
 Plan C supports restoring from backup archives where the backup target was a Computer or Folder. Backups sent to Friends 
 probably have additional encryption that I have not examined.
@@ -90,13 +107,17 @@ It doesn't support restoring file metadata like permissions.
 
 First you must use Plan C to recover your decryption key. 
 
-#### Recovery from ADB - CrashPlan Home
+#### Recovery from ADB
 
 Your decryption key is stored in CrashPlan's adb database. Because of the potential for Plan C to inadvertently corrupt 
-the adb database, it is best to point it to a copy of the adb directory:
+the adb database, make a copy of the adb directory and only use Plan C with the copy
+
+##### Recovery from ADB - CrashPlan Home
+
+Run plan-c against your ADB directory like so to recover your key:
 
 ```bash
-plan-c --adb path/to/your/adb-copy/ recover-key 
+plan-c recover-key --adb path/to/your/adb-copy/  
 ```
 
 The output should look like:
@@ -106,15 +127,14 @@ Here's your recovered decryption key (for use with --key):
 47F28C8B159B44979F420A7721C3104F...
 ```
 
-#### Recovery from ADB - CrashPlan Small Business
+##### Recovery from ADB - CrashPlan Small Business
 
-In this version, the adb directory is encrypted using a key that is specific to the computer that CrashPlan was 
-installed on (so key recovery must be run on that computer).
+In this version the adb directory is encrypted using a key that is specific to the computer that CrashPlan was 
+installed on (so key recovery must be run on that computer, unless you can recover the serial number from that machine).
 
-Currently, Plan C only supports adb directories created on Windows.
-
-On Windows, the adb directory is encrypted by the "Local System" account, so we need to use a tool called "PsExec" to 
-run Plan C as Local System. Download it from here and put PsExec.exe into the same directory as Plan C:
+**On Windows**, you *must* recover the key using the computer that created the adb directory. The adb directory is 
+encrypted by the "Local System" account, so we need to use a tool called "PsExec" to run Plan C as Local System. 
+Download it from here and put PsExec.exe into the same directory as Plan C:
 
 https://learn.microsoft.com/en-us/sysinternals/downloads/psexec
 
@@ -123,11 +143,34 @@ the Plan C directory and run:
 
     psexec.exe -c -s plan-c.exe recover-key --adb c:\your\copy\of\adb
 
-Replace the pathname with the full path to a copy of the adb directory. 
+Replace the pathname with the full path to a copy of the adb directory.
+
+**On macOS**, the adb directory is encrypted using your Mac's serial number. Plan C will read this for you automatically
+if you run it on the same Mac that the adb directory was created on.
+
+If you're running Plan C on a different machine, you can look up your device's serial number in 
+[your Apple ID settings](https://appleid.apple.com/account/manage), just click the Devices menu and select your device
+to see its serial number. Note that this is case-sensitive. Pass it to Plan C like so:
+
+    ./plan-c recover-key --adb copy/of/adb --mac-serial C02TM2ZBHX87
+
+**On Linux**, the adb directory is encrypted using a key derived from the machine-id, like so:
+
+    cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null
+
+Plan C will read this for you automatically if you run it on the same machine that the adb directory was created on.
+Otherwise, you can run that command on the original machine and then supply that value to Plan C like so:
+
+    ./plan-c recover-key --adb copy/of/adb --linux-serial "c3fdd72a687e256f93a8dc04636dd8ac
+    c3fdd72a687e256f93a8dc04636dd8ac
+    "
+
+Note that in this case both of my machine-id files ended with a newline character, so I have to include those when 
+supplying the value to Plan C (so the closing quote ends up on a line on its own).
 
 #### Recovery from a passphrase
 
-If you had Crashplan generate a key for you based on a passphrase, you can use the `derive-key` command instead to 
+If you had Crashplan Home generate a key for you based on a passphrase, you can use the `derive-key` command instead to 
 re-derive that key:
 
 ```
@@ -180,7 +223,8 @@ Here's your recovered decryption key (for use with --key):
 ```
 
 #### Custom 76-character decryption key
-If you have a Crashplan custom encryption key which is a 76-character long Base64 string, use the `--key64` argument to 
+
+If you have a CrashPlan custom encryption key which is a 76-character long Base64 string, use the `--key64` argument to 
 supply it directly to Plan C.
 
 ### Calling Plan C
@@ -192,6 +236,10 @@ Options:
   --adb arg              path to CrashPlan's 'adb' directory to recover a
                          decryption key from (e.g. /Library/Application
                          Support/CrashPlan/conf/adb. Optional)
+  --mac-serial arg       serial number of the Mac that matches the adb
+                         directory (for CrashPlan Small Business, optional)
+  --linux-serial arg     serial number of the Linux machine that matches the
+                         adb directory (for CrashPlan Small Business, optional)
   --cpproperties arg     path to a cp.properties file containing a
                          'secureDataKey' field to recover a decryption key from
                          (Optional)

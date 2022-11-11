@@ -78,3 +78,5 @@ std::string deriveCustomArchiveKeyV2(const std::string &userID, const std::strin
 
 bool passwordUnlocksSecureDataKey(const std::string &decoded, const std::string &password);
 std::string decryptSecureDataKey(const std::string &decoded, const std::string &password);
+
+std::string generateSmallBusinessKeyV2(const std::string &passphrase, const std::string &salt);

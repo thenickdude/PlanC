@@ -514,25 +514,28 @@ std::string recoverADBKey(leveldb::DB *adb) {
     } catch (std::runtime_error &e) {
         cerr << "Failed to read ArchiveDataKey from ADB: " << e.what() << endl;
 
-        if (adbKeyExists(adb, "\x01" "ArchiveSecureDataKey")) {
-            cerr << endl
-                 << "It looks like there is an ArchiveSecureDataKey available instead, which is encrypted with "
-                    "your CrashPlan Account Password or Archive Password. Enter that password now to attempt decryption "
-                    "of the key:" << endl;
+        try {
+            // Check we can both read and de-obfuscate it: 
+            adbReadKey(adb, "\x01" "ArchiveSecureDataKey");
+        } catch (...) {
+            throw e;
+        }
+        
+        cerr << endl
+             << "It looks like there is an ArchiveSecureDataKey available instead, which is encrypted with "
+                "your CrashPlan Account Password or Archive Password. Enter that password now to attempt decryption "
+                "of the key:" << endl;
 
-            cerr << "? ";
+        cerr << "? ";
 
-            string accountPassword(readInputLine());
+        string accountPassword(readInputLine());
 
-            try {
-                std::string key = adbReadSecureKey(adb, "\x01" "ArchiveSecureDataKey", accountPassword);
+        try {
+            std::string key = adbReadSecureKey(adb, "\x01" "ArchiveSecureDataKey", accountPassword);
 
-                return key;
-            } catch (std::runtime_error &e) {
-                cerr << "Failed to read ArchiveSecureDataKey from ADB: " << e.what() << endl;
-                throw;
-            }
-        } else {
+            return key;
+        } catch (std::runtime_error &e) {
+            cerr << "Failed to read ArchiveSecureDataKey from ADB: " << e.what() << endl;
             throw;
         }
     }
@@ -674,6 +677,10 @@ int main(int argc, char **argv) {
 		("help", "shows this page")
 		("adb", po::value<string>(),
 		 "path to CrashPlan's 'adb' directory to recover a decryption key from (e.g. /Library/Application Support/CrashPlan/conf/adb. Optional)")
+        ("mac-serial", po::value<string>(),
+            "serial number of the Mac that matches the adb directory (for CrashPlan Small Business, optional)")
+        ("linux-serial", po::value<string>(),
+            "serial number of the Linux machine that matches the adb directory (for CrashPlan Small Business, optional)")
         ("cpproperties", po::value<string>(),
             "path to a cp.properties file containing a 'secureDataKey' field to recover a decryption key from (Optional)")
         ("max-userid", po::value<int32_t>(),
@@ -803,14 +810,16 @@ int main(int argc, char **argv) {
 			cerr << "Failed to open ADB (" + adbPath + ") to recover your decryption key:" << endl;
 			cerr << e.what() << endl << endl;
 			cerr << "You may need to run 'sudo ./plan-c recover-key' to have enough permission to read that directory, then pass the recovered key to the --key option." << endl << endl;
-			cerr << "Also check that the Crashplan service is not running (it holds a lock on ADB), try one of these:" << endl;
-			cerr << "  macOS   - sudo launchctl unload /Library/LaunchDaemons/com.crashplan.engine.plist" << endl;
-			cerr << "  Windows - net stop CrashPlanService" << endl;
-			cerr << "  Linux   - sudo service crashplan stop" << endl;
-			cerr << "  Other   - https://support.code42.com/CrashPlan/4/Troubleshooting/Stop_and_start_the_Code42_app_service" << endl;
+			cerr << "Also check that the CrashPlan service is not running (it holds a lock on ADB), try one of these:" << endl;
+			cerr << "  macOS   - sudo launchctl unload /Library/LaunchDaemons/com.code42.service.plist" << endl;
+			cerr << "  Windows - net stop \"Code42 Service\"" << endl;
+			cerr << "  Linux   - sudo /usr/local/crashplan/bin/service.sh stop" << endl;
+			cerr << "  Other   - https://support.code42.com/Incydr/Agent/Troubleshooting/Stop_and_start_the_Code42_app_service" << endl;
 
 			return EXIT_FAILURE;
 		}
+
+        adbInitPlatformKeys(vm.count("mac-serial") ? vm["mac-serial"].as<string>() : "", vm.count("linux-serial") ? vm["linux-serial"].as<string>() : "");
 
 		if (vm["command"].as<string>() == "recover-keys") {
 			cerr << "All deobfuscated values from adb:" << endl;

@@ -12,15 +12,20 @@ UNAME := $(shell uname)
 MSYS_VERSION := $(if $(findstring Msys, $(shell uname -o)),$(word 1, $(subst ., ,$(shell uname -r))),0)
 
 ifeq ($(MSYS_VERSION), 0)
-# Linux/macOS:
-LINK_OS_LIBS =
+	ifeq ($(UNAME), Darwin)
+	# macOS
+	LINK_OS_LIBS = -framework CoreFoundation -framework IOKit
+	else 
+	# Linux
+	LINK_OS_LIBS =
+	endif
 else
 # Windows:
 LINK_OS_LIBS = -lcrypt32
 endif
 
 ifeq ($(UNAME), Darwin)
-# Can't make a fully static build on macOS, but the dynamic version works nicely anyway:
+# Can't make a static build on macOS, but the dynamic version works nicely anyway:
 STATIC_OPTIONS =
 else
 STATIC_OPTIONS = -static -static-libgcc -static-libstdc++
@@ -54,8 +59,7 @@ cpp_properties/build :
 	cd cpp_properties/build && make
 
 boost/boost/ : zlib/libz.a
-	git submodule update --init
-	cd boost && ./bootstrap.sh
+	cd boost && git submodule update --init && ./bootstrap.sh
 	echo "using zlib : 1.2.11 : <include>$(ZLIB_PATH) <search>$(ZLIB_PATH) ;" >> boost/project-config.jam
 	cd boost && ./b2 headers
 	touch -c boost/boost # Ensure it becomes newer than libz so we don't keep rebuilding it
@@ -70,7 +74,7 @@ release : plan-c
 	gpg2 --local-user "n.sherlock@gmail.com" --detach-sign -o plan-c.sig plan-c
 	tar -zcf plan-c.tar.gz plan-c plan-c.sig
 
-plan-c : $(OBJECTS) $(SUBMODULES) comparator.o $(STATIC_LIBS)
+plan-c : $(SUBMODULES) $(OBJECTS) comparator.o $(STATIC_LIBS)
 	$(CXX) $(STATIC_OPTIONS) -Wall --std=c++14 -O3 -g3 -o $@ $(OBJECTS) comparator.o $(STATIC_LIBS) -lpthread $(LINK_OS_LIBS)
 
 # Needs to be compiled separately so we can use fno-rtti to be compatible with leveldb:

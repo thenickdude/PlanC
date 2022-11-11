@@ -7,6 +7,7 @@
 #include "cryptopp/aes.h"
 #include "cryptopp/modes.h"
 #include "cryptopp/sha.h"
+#include "cryptopp/pwdbased.h"
 
 static const CryptoPP::byte BLOWFISH_IV[CryptoPP::Blowfish::BLOCKSIZE] = {12, 34, 56, 78, 90, 87, 65, 43};
 static const CryptoPP::byte AES_IV[CryptoPP::AES::BLOCKSIZE] = {121, 92, 86, 51, 153, 89, 163, 254, 47, 51, 47, 174, 253, 149, 129, 140};
@@ -270,4 +271,18 @@ std::string Code42Blowfish448::decrypt(const std::string & cipherText, const std
 	delete[] buffer;
 
 	return result;
+}
+
+std::string generateSmallBusinessKeyV2(const std::string &passphrase, const std::string &salt) {
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> generator;
+    CryptoPP::byte derived[32];
+    
+    generator.DeriveKey(
+        derived, sizeof(derived), 0, 
+        (const CryptoPP::byte*) passphrase.data(), passphrase.length(),
+        (const CryptoPP::byte*) salt.data(), salt.length(), 
+        10000
+    );
+    
+    return std::string((const char *)derived, sizeof(derived));
 }
