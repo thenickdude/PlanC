@@ -26,11 +26,18 @@ this key. **It's possible that the CrashPlan client will erase the key automatic
 So **you should immediately make a backup copy of your adb directory** to preserve the key. First stop the CrashPlan
 daemon so it releases its lock on the directory:
 
-Windows (CrashPlan Home) - `net stop CrashPlanService` 
-Windows (CrashPlan Small Business) - `net stop "Code42 Service"`
-macOS - `sudo launchctl unload /Library/LaunchDaemons/com.crashplan.engine.plist`  
+CrashPlan Home:
+
+Windows - `net stop CrashPlanService`   
+macOS - `sudo launchctl unload /Library/LaunchDaemons/com.crashplan.engine.plist`   
 Linux - `sudo service crashplan stop`  
-Other - https://support.code42.com/CrashPlan/4/Troubleshooting/Stop_and_start_the_Code42_app_service
+
+CrashPlan Small Business:
+
+Windows - `net stop "Code42 Service"`   
+macOS - `sudo launchctl unload /Library/LaunchDaemons/com.code42.service.plist`   
+Linux - `sudo service crashplan stop`  
+Other - https://support.code42.com/Incydr/Agent/Troubleshooting/Stop_and_start_the_Code42_app_service
 
 Now copy the adb directory somewhere safe, here's where to find it:
 
@@ -66,9 +73,6 @@ WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWIS
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Supported environment
-
-Plan C is only supported on POSIX environments like macOS and Linux. Backups of Windows computers can be restored, but Plan C 
-itself cannot run on Windows.
 
 Plan C has only been tested with backups maintained with CrashPlan 4.8. Older databases may use legacy features that Plan C
 does not support.

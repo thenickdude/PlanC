@@ -31,6 +31,7 @@
 #include "boost/iostreams/filter/gzip.hpp"
 #include "boost/date_time.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
+#include "boost/system/error_code.hpp"
 
 #define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
 
@@ -263,9 +264,24 @@ void restoreFileRevision(const BackupArchive &archive,
 						 const FileManifestHeader &file, const ArchivedFileVersion &version,
 						 const BlockList &blockList,
 						 const boost::filesystem::path &destDirectory,
-						 bool dryRun = true) {
-	boost::filesystem::path destFilename = destDirectory / boost::filesystem::path(file.path);
+						 bool dryRun = true,
+                         bool destSupportsColons = true) {
+    boost::filesystem::path destFilename;
 
+    if (destSupportsColons) {
+        destFilename = destDirectory / boost::filesystem::path(file.path);
+    } else {
+        std::string mungedPath(file.path);
+
+        for (int i = 0; i < mungedPath.length(); i++) {
+            if (mungedPath[i] == ':') {
+                mungedPath[i] = '-';
+            }
+        }
+
+        destFilename = destDirectory / boost::filesystem::path(mungedPath);
+    }
+    
 	if (!dryRun) {
 		boost::filesystem::create_directories(destFilename.parent_path());
 	}
@@ -382,10 +398,38 @@ void restoreFileRevision(const BackupArchive &archive,
 	cout << file.path << endl;
 }
 
+static bool directorySupportsColons(const boost::filesystem::path &path) {
+    boost::filesystem::path testNoColon(path / "._planc-test");
+    boost::filesystem::path testColon(path / "._planc:test");
+    
+    boost::system::error_code err;
+    
+    boost::filesystem::create_directory(testNoColon, err);
+    
+    if (err.value()) {
+        // It seems that we can't create any files in the destination, so we can't check for colon support. 
+        // Just say it's supported.
+        return true;
+    }
+
+    boost::filesystem::remove(testNoColon);
+
+    boost::filesystem::create_directory(testColon, err);
+
+    if (err.value()) {
+        return false;
+    }
+
+    boost::filesystem::remove(testColon);
+    
+    return true;
+}
+
 bool restoreBackupFiles(BackupArchive &archive, BackupArchive::iterator &begin, BackupArchive::iterator &end,
 						const boost::filesystem::path &destDirectory,
 						bool includeDeleted, TimeMode timeMode, time_t atTime,
-						bool dryRun = true) {
+						bool dryRun = true,
+                        bool destSupportsColons = true) {
 	bool success = true;
 
 	// For every matched file in the manifest:
@@ -418,9 +462,9 @@ bool restoreBackupFiles(BackupArchive &archive, BackupArchive::iterator &begin, 
 				}
 
 				if (includeDeleted && hasPreviousNotDeleted) {
-					restoreFileRevision(archive, file, previousNotDeleted.version, previousNotDeleted.blockList, destDirectory, dryRun);
+					restoreFileRevision(archive, file, previousNotDeleted.version, previousNotDeleted.blockList, destDirectory, dryRun, destSupportsColons);
 				} else if (hasPrevious && !previous.version.isDeleted()) {
-					restoreFileRevision(archive, file, previous.version, previous.blockList, destDirectory, dryRun);
+					restoreFileRevision(archive, file, previous.version, previous.blockList, destDirectory, dryRun, destSupportsColons);
 				}
 			} catch (std::exception &e) {
 				success = false;
@@ -862,8 +906,9 @@ int main(int argc, char **argv) {
 		} else if (vm["command"].as<string>() == "restore") {
 			bool dryRun = vm.count("dry-run") > 0;
 			boost::filesystem::path destDirectory;
+            bool colonSupport = true;
 
-			if (!dryRun) {
+            if (!dryRun) {
 				if (!vm.count("dest")) {
 					cerr << "You must a --dest to specify where restored files should be saved to" << endl;
 					return EXIT_FAILURE;
@@ -875,8 +920,14 @@ int main(int argc, char **argv) {
 					cerr << "Destination '" + destDirectory.string() + "' is not a directory." << endl;
 					return EXIT_FAILURE;
 				}
-			}
 
+                colonSupport = directorySupportsColons(destDirectory);
+
+                if (!colonSupport) {
+                    cerr << "Destination filesystem does not support ':' characters in filenames, replacing those with '-'" << endl;
+                }
+            }
+            
 			cerr << "Caching block indexes in memory..." << endl;
 			backupArchive->cacheBlockIndex();
 
@@ -891,7 +942,7 @@ int main(int argc, char **argv) {
 
 			TimeMode timeMode = vm.count("at") ? TimeMode::atTime : TimeMode::latest;
 
-			bool success = restoreBackupFiles(*backupArchive, begin, end, destDirectory, includeDeleted, timeMode, at, dryRun);
+			bool success = restoreBackupFiles(*backupArchive, begin, end, destDirectory, includeDeleted, timeMode, at, dryRun, colonSupport);
 
 			if (success) {
 				cerr << "Done!" << endl;
