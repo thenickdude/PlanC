@@ -1,4 +1,4 @@
-.PHONY: all clean release clean-deps
+.PHONY: all clean release clean-deps sign
 
 OBJECTS = planc.o adb.o common.o backup.o blocks.o crypto.o properties.o
 SUBMODULES = cryptopp/Readme.txt zstr/README.org zlib/README boost/README.md leveldb/README.md snappy/README.md cpp_properties/README.md
@@ -30,7 +30,10 @@ STATIC_OPTIONS =
 else
 STATIC_OPTIONS = -static -static-libgcc -static-libstdc++
 endif
- 
+
+#CODE_SIGNING_IDENTITY=Developer ID Application: Nicholas Sherlock (8J3T27D935)
+#CODE_SIGNING_KEYCHAIN_PROFILE=n.sherlock
+
 all : plan-c
 
 ZLIB_PATH = $(abspath zlib)
@@ -70,9 +73,24 @@ $(BOOST_LIBS) : zlib/libz.a
 		--with-thread --with-regex --with-serialization -s NO_BZIP2=1
 	touch -c $(BOOST_LIBS) # Ensure it becomes newer than libz so we don't keep rebuilding it
 
-release : plan-c
-	gpg2 --local-user "n.sherlock@gmail.com" --detach-sign -o plan-c.sig plan-c
+release : plan-c plan-c.sig
 	tar -zcf plan-c.tar.gz plan-c plan-c.sig
+
+plan-c.sig : plan-c
+	gpg2 --local-user "n.sherlock@gmail.com" --detach-sign -o $@ $<
+
+ifdef CODE_SIGNING_IDENTITY
+sign: plan-c-macOS.zip 
+
+plan-c-macOS.zip : plan-c
+	codesign -s "$(CODE_SIGNING_IDENTITY)" --force --options=runtime --timestamp $<
+	gpg2 --local-user "n.sherlock@gmail.com" --detach-sign -o plan-c.sig plan-c
+	zip $@ plan-c plan-c.sig
+	xcrun notarytool \
+		submit \
+		--keychain-profile $(CODE_SIGNING_KEYCHAIN_PROFILE) \
+		"$@"
+endif
 
 plan-c : $(SUBMODULES) $(OBJECTS) comparator.o $(STATIC_LIBS)
 	$(CXX) $(STATIC_OPTIONS) -Wall --std=c++14 -O3 -g3 -o $@ $(OBJECTS) comparator.o $(STATIC_LIBS) -lpthread $(LINK_OS_LIBS)
@@ -85,7 +103,7 @@ comparator.o : comparator.cpp
 	 $(CXX) $(STATIC_OPTIONS) -c -Wall --std=c++14 -O3 -g3 -o $@ -Iboost -Ileveldb/include -Icpp_properties/src/include -Icpp_properties/example/include -Izlib -Izstr/src $<
 
 clean :
-	rm -f plan-c plan-c.exe *.o
+	rm -f plan-c plan-c.exe plan-c-macOS.zip *.o
 
 clean-deps :
 	cd cryptopp && make clean || true
@@ -93,4 +111,3 @@ clean-deps :
 	cd snappy && make clean || true
 	rm -rf leveldb/build
 	cd zlib && make clean || true
-	cd snappy && make clean || true
